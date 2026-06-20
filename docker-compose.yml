@@ -1,0 +1,45 @@
+services:
+  db:
+    image: alfurkan1/iptv-mariadb:latest
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: iptv_root_pass
+      MYSQL_DATABASE: iptv_system
+      MYSQL_USER: iptv_user
+      MYSQL_PASSWORD: iptv_pass
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  php-fpm:
+    image: alfurkan1/iptv-php:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: db
+      MYSQL_DATABASE: iptv_system
+      MYSQL_USER: iptv_user
+      MYSQL_PASSWORD: iptv_pass
+      MYSQL_PORT: "3306"
+    volumes:
+      - app_data:/var/www/iptv
+
+  nginx:
+    image: alfurkan1/iptv-nginx:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - php-fpm
+    volumes:
+      - app_data:/var/www/iptv
+
+volumes:
+  db_data:
+  app_data:

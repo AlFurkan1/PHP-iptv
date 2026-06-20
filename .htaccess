@@ -1,0 +1,14 @@
+# Deny access to sensitive directories
+<IfModule mod_autoindex.c>
+    Options -Indexes
+</IfModule>
+
+# Protect includes and API from direct browsing
+<FilesMatch "\.(env|sql|md)$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^includes/ - [F,L]
+</IfModule>

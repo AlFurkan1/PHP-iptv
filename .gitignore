@@ -1,0 +1,6 @@
+cache/
+bin/yt-dlp.exe
+.docker/
+.env
+*.log
+NUL
