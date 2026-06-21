@@ -3,6 +3,4 @@ bin/yt-dlp.exe
 .git
 .gitignore
 docker-compose.yml
-docker/
-Dockerfile
 *.md
