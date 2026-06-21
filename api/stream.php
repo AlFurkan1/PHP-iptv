@@ -88,11 +88,8 @@ if ($ch['stream_type'] === 'M3U8' || $ch['stream_type'] === 'Restream') {
     }
 }
 
-// For Live (OBS/vMix) type — pass cookie check param so MediaMTX skips the redirect
+// For Live (OBS/vMix) type — nginx adds CDN Bearer token so MediaMTX skips session system
 if ($ch['stream_type'] === 'Live') {
-    $parsed = parse_url($url);
-    $sep = isset($parsed['query']) ? '&' : '?';
-    $url .= $sep . 'cookieCheck=1';
     $mime = 'application/x-mpegURL';
 }
 

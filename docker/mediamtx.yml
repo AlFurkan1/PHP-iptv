@@ -1,4 +1,5 @@
 logLevel: info
+hlsCDNSecret: "iptv-proxy-secret-change-me"
 paths:
   all:
     source: publisher
