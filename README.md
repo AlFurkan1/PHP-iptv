@@ -23,7 +23,7 @@ docker-compose up -d
 
 Then access:
 - **Viewer**: http://localhost/
-- **Admin Panel**: http://localhost/admin/login.php (default: `admin` / `admin123`)
+- **Admin Panel**: http://localhost/admin/login.php (default: `` / ``)
 
 ## Streaming with OBS / vMix
 
