@@ -10,7 +10,7 @@ if (empty($_GET['id']) || !ctype_digit($_GET['id'])) {
 }
 
 $stmt = $pdo->prepare(
-    'SELECT id, name, stream_type, url, yt_format, direct_play, status FROM channels WHERE id = :id LIMIT 1'
+    'SELECT id, name, stream_type, url, stream_key, yt_format, direct_play, status FROM channels WHERE id = :id LIMIT 1'
 );
 $stmt->execute([':id' => (int)$_GET['id']]);
 $ch = $stmt->fetch();
@@ -86,6 +86,14 @@ if ($ch['stream_type'] === 'M3U8' || $ch['stream_type'] === 'Restream') {
         $url  = 'api/proxy.php?channel_id=' . $ch['id'];
         $mime = 'application/x-mpegURL';
     }
+}
+
+// For Live (OBS/vMix) type — pass cookie check param so MediaMTX skips the redirect
+if ($ch['stream_type'] === 'Live') {
+    $parsed = parse_url($url);
+    $sep = isset($parsed['query']) ? '&' : '?';
+    $url .= $sep . 'cookieCheck=1';
+    $mime = 'application/x-mpegURL';
 }
 
 // For direct_play non-HLS types (MP4, TS), serve original URL directly
