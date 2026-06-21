@@ -11,6 +11,7 @@ A self-hosted IPTV streaming server with live channel management, HLS proxy, M3U
 - **YouTube Streaming** — Uses yt-dlp to resolve YouTube live URLs into playable HLS streams
 - **Viewer Tracking** — Real-time viewer count with heartbeat API and live session monitoring
 - **Admin Dashboard** — Manage channels, categories, branding, cache settings, activity logs, and admin credentials
+- **Bandwidth Monitoring** — Traffic usage graph on the dashboard with daily aggregates and date-range filtering; data is collected automatically from nginx container network stats
 - **Docker Deployment** — Fully containerized with Docker Compose (nginx, PHP-FPM, MariaDB, MediaMTX)
 
 ## Quick Start

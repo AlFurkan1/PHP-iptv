@@ -4,6 +4,12 @@ require_once __DIR__ . '/includes/auth.php';
 
 $pageTitle = 'Dashboard';
 
+// ── Network settings for the traffic graph ──────────────────────────────────
+$netSettingsFile = __DIR__ . '/../cache/settings.json';
+$netSettings     = is_file($netSettingsFile) ? json_decode(file_get_contents($netSettingsFile), true) : [];
+$netInterface    = $netSettings['net_interface'] ?? 'eth0';
+$graphType       = $netSettings['graph_type'] ?? 'area';
+
 // ── Stats ──────────────────────────────────────────────────────────────────
 $totalChannels = $pdo->query('SELECT COUNT(*) FROM channels')->fetchColumn();
 $activeStreams = $pdo->query("SELECT COUNT(*) FROM channels WHERE status = 'active'")->fetchColumn();
@@ -87,7 +93,7 @@ require __DIR__ . '/includes/header.php';
 </div>
 
 <div class="admin-header mt-4">
-    <h5>Traffic (nginx eth0)</h5>
+    <h5>Traffic (nginx <?= htmlspecialchars($netInterface) ?>)</h5>
     <span class="text-secondary">Bandwidth usage over time</span>
 </div>
 
@@ -150,25 +156,32 @@ function loadTraffic() {
             if (trafficChart) trafficChart.destroy();
 
             const ctx = document.getElementById('traffic-chart').getContext('2d');
+            const chartType = '<?= $graphType === 'bar' ? 'bar' : 'line' ?>';
             trafficChart = new Chart(ctx, {
-                type: 'bar',
+                type: chartType,
                 data: {
                     labels: d.labels,
                     datasets: [
                         {
                             label: 'Download',
                             data: d.in,
-                            backgroundColor: 'rgba(0,188,212,0.7)',
+                            backgroundColor: 'rgba(0,188,212,0.15)',
                             borderColor: '#00bcd4',
-                            borderWidth: 1,
+                            borderWidth: 2,
+                            fill: chartType === 'line',
+                            tension: 0.3,
+                            pointRadius: chartType === 'line' ? 2 : 0,
                             borderRadius: 3,
                         },
                         {
                             label: 'Upload',
                             data: d.out,
-                            backgroundColor: 'rgba(255,87,34,0.7)',
+                            backgroundColor: 'rgba(255,87,34,0.15)',
                             borderColor: '#ff5722',
-                            borderWidth: 1,
+                            borderWidth: 2,
+                            fill: chartType === 'line',
+                            tension: 0.3,
+                            pointRadius: chartType === 'line' ? 2 : 0,
                             borderRadius: 3,
                         }
                     ]

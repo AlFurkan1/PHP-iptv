@@ -18,6 +18,10 @@ $sessionTtlFile = __DIR__ . '/../cache/session_timeout.txt';
 $sessionTtl     = is_file($sessionTtlFile) ? (int)trim(file_get_contents($sessionTtlFile)) : 60;
 $logRetFile     = __DIR__ . '/../cache/log_retention.txt';
 $logRetention   = is_file($logRetFile) ? (int)trim(file_get_contents($logRetFile)) : 30;
+$netSettingsFile = __DIR__ . '/../cache/settings.json';
+$netSettings     = is_file($netSettingsFile) ? json_decode(file_get_contents($netSettingsFile), true) : [];
+$netInterface    = $netSettings['net_interface'] ?? 'eth0';
+$graphType       = $netSettings['graph_type'] ?? 'area';
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrfVerify($_POST['_csrf'] ?? '')) {
@@ -50,6 +54,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrfVerify($_POST['_csrf'] ?? '')) 
         $logRetention = $val;
         $message = 'Log retention updated to ' . $val . ' days.';
         logActivity($pdo, (int)$_SESSION['admin_id'], 'Settings Updated', 'Log retention changed to ' . $val . ' days');
+    } elseif (isset($_POST['net_interface'])) {
+        $iface = trim($_POST['net_interface']);
+        $gtype = $_POST['graph_type'] === 'bar' ? 'bar' : 'area';
+        file_put_contents($netSettingsFile, json_encode(['net_interface' => $iface, 'graph_type' => $gtype], JSON_UNESCAPED_SLASHES), LOCK_EX);
+        $netInterface = $iface;
+        $graphType    = $gtype;
+        $message = 'Network monitoring settings saved.';
+        logActivity($pdo, (int)$_SESSION['admin_id'], 'Settings Updated', 'Network interface: ' . $iface . ', graph: ' . $gtype);
     } elseif (isset($_POST['curr_user']) && isset($_POST['curr_pass'])) {
         $currUser = trim($_POST['curr_user'] ?? '');
         $currPass = $_POST['curr_pass'] ?? '';
@@ -259,6 +271,28 @@ require __DIR__ . '/includes/header.php';
                 <small class="form-text">Auto-delete activity logs older than this many days.</small>
             </div>
             <button type="submit" class="btn-accent" style="width:auto;padding:.5rem 1.5rem">Save Retention</button>
+        </form>
+    </div>
+</div>
+
+<div class="card mt-4" style="background:var(--bg-card);border:1px solid var(--border-color);max-width:600px">
+    <div class="card-body">
+        <h5 class="mb-3">Network Monitoring</h5>
+        <form method="post">
+            <input type="hidden" name="_csrf" value="<?= csrfToken() ?>">
+            <div class="mb-3">
+                <label class="form-label">Network Interface</label>
+                <input type="text" name="net_interface" class="form-control" value="<?= htmlspecialchars($netInterface) ?>" required>
+                <small class="form-text">Name of the network interface to monitor (e.g., eth0, ens3, eth1). Found in <code>/proc/net/dev</code> inside the nginx container.</small>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Graph Style</label>
+                <select name="graph_type" class="form-select">
+                    <option value="area" <?= $graphType === 'area' ? 'selected' : '' ?>>Area Chart</option>
+                    <option value="bar"  <?= $graphType === 'bar' ? 'selected' : '' ?>>Bar Chart</option>
+                </select>
+            </div>
+            <button type="submit" class="btn-accent" style="width:auto;padding:.5rem 1.5rem">Save Network Settings</button>
         </form>
     </div>
 </div>
