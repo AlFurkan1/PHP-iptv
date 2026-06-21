@@ -59,6 +59,15 @@ CREATE TABLE IF NOT EXISTS activity_logs (
     FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+-- Traffic stats (for bandwidth chart)
+CREATE TABLE IF NOT EXISTS traffic_stats (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    recorded_at DATETIME NOT NULL,
+    bytes_in BIGINT UNSIGNED NOT NULL,
+    bytes_out BIGINT UNSIGNED NOT NULL,
+    INDEX idx_recorded_at (recorded_at)
+) ENGINE=InnoDB;
+
 -- Default admin (password: admin123)
 INSERT IGNORE INTO admins (username, password, role) VALUES
 ('admin', '$2y$10$CFPLkffrY34uRiARFpFMC.9bKWBCMZcHh1WYH03UVEpD6hl5cRBW2', 'superadmin');

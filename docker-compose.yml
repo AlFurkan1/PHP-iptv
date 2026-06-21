@@ -40,6 +40,8 @@ services:
     volumes:
       - .:/var/www/iptv
       - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./docker/traffic_collect.sh:/traffic_collect.sh
+    command: sh /traffic_collect.sh
 
   mediamtx:
     image: bluenviron/mediamtx:latest

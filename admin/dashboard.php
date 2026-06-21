@@ -86,7 +86,135 @@ require __DIR__ . '/includes/header.php';
     </table>
 </div>
 
+<div class="admin-header mt-4">
+    <h5>Traffic (nginx eth0)</h5>
+    <span class="text-secondary">Bandwidth usage over time</span>
+</div>
+
+<div class="card mb-4" style="background:var(--bg-card);border:1px solid var(--border-color)">
+    <div class="card-body">
+        <form class="row g-3 mb-3 align-items-end" id="traffic-filter">
+            <div class="col-auto">
+                <label class="form-label small">From</label>
+                <input type="date" name="from" id="tf-from" class="form-control form-control-sm">
+            </div>
+            <div class="col-auto">
+                <label class="form-label small">To</label>
+                <input type="date" name="to" id="tf-to" class="form-control form-control-sm">
+            </div>
+            <div class="col-auto">
+                <button type="button" class="btn-accent btn-sm" onclick="loadTraffic()"
+                        style="padding:.3rem 1rem">Apply</button>
+            </div>
+            <div class="col-auto">
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        onclick="quickRange(7)"  style="border-color:var(--border-color);color:var(--text-color);padding:.3rem .8rem">7d</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        onclick="quickRange(30)" style="border-color:var(--border-color);color:var(--text-color);padding:.3rem .8rem">30d</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        onclick="quickRange(90)" style="border-color:var(--border-color);color:var(--text-color);padding:.3rem .8rem">90d</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        onclick="quickRange(365)" style="border-color:var(--border-color);color:var(--text-color);padding:.3rem .8rem">1y</button>
+            </div>
+        </form>
+        <canvas id="traffic-chart" height="220"></canvas>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script>
+let trafficChart = null;
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B','KB','MB','GB','TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+function loadTraffic() {
+    const from = document.getElementById('tf-from').value;
+    const to   = document.getElementById('tf-to').value;
+    const url  = '../api/traffic_data.php?' + new URLSearchParams({from, to});
+
+    fetch(url)
+        .then(r => r.json())
+        .then(d => {
+            if (!d.labels || d.labels.length === 0) {
+                document.getElementById('traffic-chart').style.display = 'none';
+                return;
+            }
+            document.getElementById('traffic-chart').style.display = '';
+
+            if (trafficChart) trafficChart.destroy();
+
+            const ctx = document.getElementById('traffic-chart').getContext('2d');
+            trafficChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: d.labels,
+                    datasets: [
+                        {
+                            label: 'Download',
+                            data: d.in,
+                            backgroundColor: 'rgba(0,188,212,0.7)',
+                            borderColor: '#00bcd4',
+                            borderWidth: 1,
+                            borderRadius: 3,
+                        },
+                        {
+                            label: 'Upload',
+                            data: d.out,
+                            backgroundColor: 'rgba(255,87,34,0.7)',
+                            borderColor: '#ff5722',
+                            borderWidth: 1,
+                            borderRadius: 3,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { labels: { color: '#ccc' } },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => ctx.dataset.label + ': ' + formatBytes(ctx.parsed.y)
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#999', maxRotation: 45 },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        y: {
+                            ticks: {
+                                color: '#999',
+                                callback: v => formatBytes(v)
+                            },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        }
+                    }
+                }
+            });
+        })
+        .catch(() => {});
+}
+
+function quickRange(days) {
+    const to   = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - days);
+    document.getElementById('tf-from').value = from.toISOString().slice(0,10);
+    document.getElementById('tf-to').value   = to.toISOString().slice(0,10);
+    loadTraffic();
+}
+
+(function() {
+    quickRange(30);
+})();
+
 // Live time ticker
 (function() {
     const cells = document.querySelectorAll('.live-time');
