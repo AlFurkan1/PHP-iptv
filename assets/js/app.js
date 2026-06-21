@@ -4,9 +4,6 @@
     const playerWrapper  = document.getElementById('playerWrapper');
     const bottomCarousel = document.getElementById('bottomCarousel');
     const viewerCount    = document.getElementById('viewerCount');
-    const playBtn        = document.getElementById('playBtn');
-    const muteBtn        = document.getElementById('muteBtn');
-    const fullscreenBtn  = document.getElementById('fullscreenBtn');
 
     let player            = null;
     let currentChannelId  = null;
@@ -38,7 +35,7 @@
     function getAllClickableItems() {
         var items = [];
         document.querySelectorAll('.channel-item[data-id]').forEach(function (el) { items.push(el); });
-        document.querySelectorAll('.carousel-item[data-id]').forEach(function (el) { items.push(el); });
+        document.querySelectorAll('.channel-card[data-id]').forEach(function (el) { items.push(el); });
         return items;
     }
 
@@ -46,15 +43,15 @@
         disposePlayer();
         currentChannelId = channelId;
         playerWrapper.classList.remove('playing');
-        playerWrapper.innerHTML = '<div class="spinner"></div>';
+        playerWrapper.innerHTML = '<div class="text-center"><div class="spinner-border text-info" role="status" style="width:3rem;height:3rem"></div></div>';
 
         var activeSidebar = document.querySelector('.channel-item[data-id="' + channelId + '"]');
-        var activeCarousel = document.querySelector('.carousel-item[data-id="' + channelId + '"]');
+        var activeCarousel = document.querySelector('.channel-card[data-id="' + channelId + '"]');
 
         loadTimeout = setTimeout(function () {
             if (!streamStarted) {
                 disposePlayer();
-                playerWrapper.innerHTML = '<div class="placeholder"><div class="icon">▶</div><p>Stream timed out. Try again later.</p></div>';
+                playerWrapper.innerHTML = '<div class="text-center" style="color:rgba(255,255,255,0.35)"><div class="mb-2 opacity-50" style="font-size:4rem">▶</div><p class="small mb-0">Stream timed out. Try again later.</p></div>';
             }
         }, 60000);
 
@@ -63,7 +60,7 @@
             .then(function (data) {
                 if (data.error) {
                     clearTimeout(loadTimeout);
-                    playerWrapper.innerHTML = '<div class="placeholder"><div class="icon">▶</div><p>' + data.error + '</p></div>';
+                    playerWrapper.innerHTML = '<div class="text-center" style="color:rgba(255,255,255,0.35)"><div class="mb-2 opacity-50" style="font-size:4rem">▶</div><p class="small mb-0">' + data.error + '</p></div>';
                     return;
                 }
 
@@ -72,7 +69,7 @@
                 startViewerPoll(channelId);
             })
             .catch(function () {
-                playerWrapper.innerHTML = '<div class="placeholder"><div class="icon">▶</div><p>Failed to load stream.</p></div>';
+                playerWrapper.innerHTML = '<div class="text-center" style="color:rgba(255,255,255,0.35)"><div class="mb-2 opacity-50" style="font-size:4rem">▶</div><p class="small mb-0">Failed to load stream.</p></div>';
             });
 
         getAllClickableItems().forEach(function (el) { el.classList.remove('active'); });
@@ -83,7 +80,7 @@
     function initPlayer(url, mime) {
         disposePlayer();
         playerWrapper.innerHTML =
-            '<video id="vid" class="video-js vjs-default-skin" controls preload="auto">' +
+            '<video id="vid" class="video-js vjs-default-skin w-100 h-100" controls preload="auto" style="object-fit:contain">' +
             '  <source src="' + url + '" type="' + mime + '">' +
             '</video>';
 
@@ -121,59 +118,11 @@
                 errMsg = 'Error ' + player.error().code + ': ' + player.error().message;
             }
             console.warn('Video.js error:', errMsg);
-            playerWrapper.innerHTML = '<div class="placeholder"><div class="icon">▶</div><p>' + errMsg + '</p></div>';
-        });
-
-        player.on('fullscreenchange', function () {
-            updateFullscreenBtn();
-        });
-
-        player.on('play', function () {
-            streamStarted = true;
-            if (loadTimeout) { clearTimeout(loadTimeout); loadTimeout = null; }
-            playBtn.innerHTML = '<i class="fas fa-pause"></i>';
-        });
-
-        player.on('pause', function () {
-            playBtn.innerHTML = '<i class="fas fa-play"></i>';
+            playerWrapper.innerHTML = '<div class="text-center" style="color:rgba(255,255,255,0.35)"><div class="mb-2 opacity-50" style="font-size:4rem">▶</div><p class="small mb-0">' + errMsg + '</p></div>';
         });
 
         playerWrapper.classList.add('playing');
-        updateFullscreenBtn();
     }
-
-    function updateFullscreenBtn() {
-        if (player && player.isFullscreen()) {
-            fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i>';
-        } else {
-            fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
-        }
-    }
-
-    // Custom control buttons
-    playBtn.addEventListener('click', function () {
-        if (!player) return;
-        if (player.paused()) {
-            player.play();
-        } else {
-            player.pause();
-        }
-    });
-
-    muteBtn.addEventListener('click', function () {
-        if (!player) return;
-        player.muted(!player.muted());
-        muteBtn.innerHTML = player.muted() ? '<i class="fas fa-volume-mute"></i>' : '<i class="fas fa-volume-up"></i>';
-    });
-
-    fullscreenBtn.addEventListener('click', function () {
-        if (!player) return;
-        if (player.isFullscreen()) {
-            player.exitFullscreen();
-        } else {
-            player.requestFullscreen();
-        }
-    });
 
     function startViewerPoll(channelId) {
         stopViewerPoll();
@@ -198,7 +147,7 @@
         fetch('api/viewers.php?channel_id=' + channelId)
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                viewerCount.textContent = data.count + ' viewer' + (data.count !== 1 ? 's' : '');
+                viewerCount.innerHTML = '<i class="fas fa-eye"></i> ' + data.count;
             })
             .catch(function () {});
     }
@@ -207,7 +156,7 @@
         stopViewerPoll();
         if (loadTimeout) { clearTimeout(loadTimeout); loadTimeout = null; }
         streamStarted = false;
-        viewerCount.textContent = '— viewers';
+        viewerCount.innerHTML = '<i class="fas fa-eye"></i> —';
         playerWrapper.classList.remove('playing');
         if (player) {
             try { player.dispose(); } catch (e) {}

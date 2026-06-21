@@ -50,6 +50,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrfVerify($_POST['_csrf'] ?? '')) 
         $logRetention = $val;
         $message = 'Log retention updated to ' . $val . ' days.';
         logActivity($pdo, (int)$_SESSION['admin_id'], 'Settings Updated', 'Log retention changed to ' . $val . ' days');
+    } elseif (isset($_POST['curr_user']) && isset($_POST['curr_pass'])) {
+        $currUser = trim($_POST['curr_user'] ?? '');
+        $currPass = $_POST['curr_pass'] ?? '';
+        $newUser  = trim($_POST['new_user'] ?? '');
+        $newPass  = $_POST['new_pass'] ?? '';
+        $confirm  = $_POST['confirm_pass'] ?? '';
+
+        $stmt = $pdo->prepare('SELECT id, username, password FROM admins WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => (int)$_SESSION['admin_id']]);
+        $admin = $stmt->fetch();
+
+        if (!$admin) {
+            $error = 'Admin account not found.';
+        } elseif (!password_verify($currPass, $admin['password'])) {
+            $error = 'Current password is incorrect.';
+        } elseif ($newUser === '' && $newPass === '') {
+            $error = 'Enter a new username or new password.';
+        } elseif ($newPass !== '' && $newPass !== $confirm) {
+            $error = 'New passwords do not match.';
+        } elseif ($newPass !== '' && strlen($newPass) < 4) {
+            $error = 'New password must be at least 4 characters.';
+        } else {
+            $updates = [];
+            $params  = [':id' => (int)$_SESSION['admin_id']];
+
+            if ($newUser !== '' && $newUser !== $admin['username']) {
+                $updates[] = 'username = :u';
+                $params[':u'] = $newUser;
+                $_SESSION['admin_user'] = $newUser;
+            }
+
+            if ($newPass !== '') {
+                $updates[] = 'password = :p';
+                $params[':p'] = password_hash($newPass, PASSWORD_BCRYPT);
+            }
+
+            if (!empty($updates)) {
+                $sql = 'UPDATE admins SET ' . implode(', ', $updates) . ' WHERE id = :id';
+                $pdo->prepare($sql)->execute($params);
+                $message = 'Credentials updated successfully.';
+                logActivity($pdo, (int)$_SESSION['admin_id'], 'Credentials Updated', 'Username or password changed');
+            } else {
+                $error = 'No changes detected.';
+            }
+        }
     } else {
     $host    = trim($_POST['host'] ?? '127.0.0.1');
     $port    = trim($_POST['port'] ?? '3306');
@@ -214,6 +259,41 @@ require __DIR__ . '/includes/header.php';
                 <small class="form-text">Auto-delete activity logs older than this many days.</small>
             </div>
             <button type="submit" class="btn-accent" style="width:auto;padding:.5rem 1.5rem">Save Retention</button>
+        </form>
+    </div>
+</div>
+
+<div class="card mt-4" style="background:var(--bg-card);border:1px solid var(--border-color);max-width:600px">
+    <div class="card-body">
+        <h5 class="mb-3">Change Username / Password</h5>
+        <form method="post">
+            <input type="hidden" name="_csrf" value="<?= csrfToken() ?>">
+            <div class="mb-3">
+                <label class="form-label">Current Username</label>
+                <input type="text" name="curr_user" class="form-control"
+                       value="<?= htmlspecialchars($_SESSION['admin_user']) ?>" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Current Password</label>
+                <input type="password" name="curr_pass" class="form-control" required>
+            </div>
+            <hr>
+            <div class="mb-3">
+                <label class="form-label">New Username</label>
+                <input type="text" name="new_user" class="form-control"
+                       placeholder="Leave blank to keep current">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">New Password</label>
+                <input type="password" name="new_pass" class="form-control"
+                       placeholder="Leave blank to keep current">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Confirm New Password</label>
+                <input type="password" name="confirm_pass" class="form-control"
+                       placeholder="Repeat new password">
+            </div>
+            <button type="submit" class="btn-accent" style="width:auto;padding:.5rem 1.5rem">Update Credentials</button>
         </form>
     </div>
 </div>

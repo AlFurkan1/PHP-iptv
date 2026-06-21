@@ -28,7 +28,7 @@ services:
       MYSQL_PASSWORD: iptv_pass
       MYSQL_PORT: "3306"
     volumes:
-      - app_data:/var/www/iptv
+      - .:/var/www/iptv
 
   nginx:
     image: alfurkan1/iptv-nginx:latest
@@ -38,8 +38,16 @@ services:
     depends_on:
       - php-fpm
     volumes:
-      - app_data:/var/www/iptv
+      - .:/var/www/iptv
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    restart: unless-stopped
+    ports:
+      - "1935:1935"
+    volumes:
+      - ./docker/mediamtx.yml:/mediamtx.yml
 
 volumes:
   db_data:
-  app_data:

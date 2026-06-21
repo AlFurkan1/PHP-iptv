@@ -21,13 +21,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sortOrder  = (int)($_POST['sort_order'] ?? 0);
         $ytFormat   = $_POST['yt_format'] ?? '';
         $directPlay = !empty($_POST['direct_play']) ? 1 : 0;
+        $streamKey  = trim($_POST['stream_key'] ?? '');
+        $ingestUrl  = trim($_POST['ingest_url'] ?? '');
 
-        if ($name === '' || $url === '') {
+        $allowedTypes = ['M3U8','MP4','RTMP','Dash','YouTube','Restream','TS','Live'];
+        if (!in_array($streamType, $allowedTypes)) $streamType = 'M3U8';
+
+        if ($streamType === 'Live') {
+            if ($streamKey === '') {
+                $streamKey = bin2hex(random_bytes(12));
+            }
+            if ($url === '') {
+                $url = '/live/' . $streamKey . '/index.m3u8';
+            }
+        }
+
+        if ($name === '' || ($url === '' && $streamType !== 'Live')) {
             $error = 'Name and URL are required.';
         } else {
-            $allowedTypes = ['M3U8','MP4','RTMP','Dash','YouTube','Restream','TS'];
-            if (!in_array($streamType, $allowedTypes)) $streamType = 'M3U8';
-
             $logo = '';
             if (!empty($_FILES['logo']['name'])) {
                 $ext = strtolower(pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION));
@@ -43,26 +54,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($action === 'create') {
                 $stmt = $pdo->prepare(
-                    'INSERT INTO channels (category_id, name, stream_type, url, yt_format, direct_play, logo, sort_order)
-                     VALUES (:cat, :name, :type, :url, :ytfmt, :direct, :logo, :sort)'
+                    'INSERT INTO channels (category_id, name, stream_type, url, stream_key, ingest_url, yt_format, direct_play, logo, sort_order)
+                     VALUES (:cat, :name, :type, :url, :sk, :iu, :ytfmt, :direct, :logo, :sort)'
                 );
-                $stmt->execute([':cat' => $categoryId, ':name' => $name, ':type' => $streamType, ':url' => $url, ':ytfmt' => $ytFormat ?: null, ':direct' => $directPlay, ':logo' => $logo, ':sort' => $sortOrder]);
+                $stmt->execute([':cat' => $categoryId, ':name' => $name, ':type' => $streamType, ':url' => $url, ':sk' => $streamKey ?: null, ':iu' => $ingestUrl ?: null, ':ytfmt' => $ytFormat ?: null, ':direct' => $directPlay, ':logo' => $logo, ':sort' => $sortOrder]);
                 $message = 'Channel created.';
                 logActivity($pdo, (int)$_SESSION['admin_id'], 'Channel Created', "Created channel: $name");
             } else {
                 $id = (int)($_POST['id'] ?? 0);
                 if ($id) {
-                    if ($logo) {
-                        $stmt = $pdo->prepare(
-                            'UPDATE channels SET category_id = :cat, name = :name, stream_type = :type, url = :url, yt_format = :ytfmt, direct_play = :direct, logo = :logo, sort_order = :sort WHERE id = :id'
-                        );
-                        $stmt->execute([':cat' => $categoryId, ':name' => $name, ':type' => $streamType, ':url' => $url, ':ytfmt' => $ytFormat ?: null, ':direct' => $directPlay, ':logo' => $logo, ':sort' => $sortOrder, ':id' => $id]);
-                    } else {
-                        $stmt = $pdo->prepare(
-                            'UPDATE channels SET category_id = :cat, name = :name, stream_type = :type, url = :url, yt_format = :ytfmt, direct_play = :direct, sort_order = :sort WHERE id = :id'
-                        );
-                        $stmt->execute([':cat' => $categoryId, ':name' => $name, ':type' => $streamType, ':url' => $url, ':ytfmt' => $ytFormat ?: null, ':direct' => $directPlay, ':sort' => $sortOrder, ':id' => $id]);
-                    }
+                    $logoSet = $logo ? 'logo = :logo, ' : '';
+                    $stmt = $pdo->prepare(
+                        "UPDATE channels SET category_id = :cat, name = :name, stream_type = :type, url = :url, stream_key = :sk, ingest_url = :iu, yt_format = :ytfmt, direct_play = :direct, {$logoSet}sort_order = :sort WHERE id = :id"
+                    );
+                    $params = [':cat' => $categoryId, ':name' => $name, ':type' => $streamType, ':url' => $url, ':sk' => $streamKey ?: null, ':iu' => $ingestUrl ?: null, ':ytfmt' => $ytFormat ?: null, ':direct' => $directPlay, ':sort' => $sortOrder, ':id' => $id];
+                    if ($logo) $params[':logo'] = $logo;
+                    $stmt->execute($params);
                     $message = 'Channel updated.';
                     logActivity($pdo, (int)$_SESSION['admin_id'], 'Channel Updated', "Updated channel: $name");
                 }
@@ -113,7 +120,7 @@ require __DIR__ . '/includes/header.php';
                 <th>Category</th>
                 <th>Type</th>
                 <th>YT Format</th>
-                <th>URL</th>
+                <th>URL / Stream Key</th>
                 <th>Direct</th>
                 <th>Status</th>
                 <th>Views</th>
@@ -141,8 +148,13 @@ require __DIR__ . '/includes/header.php';
                 <td><?= htmlspecialchars($ch['category_name']) ?></td>
                 <td><span class="badge bg-secondary"><?= htmlspecialchars($ch['stream_type']) ?></span></td>
                 <td><?= $ch['stream_type'] === 'YouTube' ? htmlspecialchars($ch['yt_format'] ?: 'best') : '—' ?></td>
-                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="<?= htmlspecialchars($ch['url']) ?>">
-                    <?= htmlspecialchars($ch['url']) ?>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                    title="<?= $ch['stream_type'] === 'Live' ? 'Watch: ' . htmlspecialchars($ch['url']) . ' | Ingest: ' . htmlspecialchars($ch['ingest_url'] ?? 'rtmp://host:1935/live') . ' | Key: ' . htmlspecialchars($ch['stream_key'] ?? '') : htmlspecialchars($ch['url']) ?>">
+                    <?php if ($ch['stream_type'] === 'Live' && $ch['stream_key']): ?>
+                        <span style="color:var(--accent)">🔴 Key: <?= htmlspecialchars(substr($ch['stream_key'], 0, 16)) ?>…</span>
+                    <?php else: ?>
+                        <?= htmlspecialchars($ch['url']) ?>
+                    <?php endif; ?>
                 </td>
                 <td><span class="badge <?= $ch['direct_play'] ? 'bg-success' : 'bg-secondary' ?>"><?= $ch['direct_play'] ? 'ON' : 'OFF' ?></span></td>
                 <td>
@@ -183,7 +195,7 @@ require __DIR__ . '/includes/header.php';
 <!-- Modal -->
 <div class="modal fade" id="channelModal" tabindex="-1">
     <div class="modal-dialog">
-        <form method="post" class="modal-content" enctype="multipart/form-data">
+        <form method="post" class="modal-content" enctype="multipart/form-data" novalidate>
             <input type="hidden" name="_csrf" value="<?= csrfToken() ?>">
             <input type="hidden" name="action" id="ch-action" value="create">
             <input type="hidden" name="id" id="ch-id" value="0">
@@ -212,7 +224,7 @@ require __DIR__ . '/includes/header.php';
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Stream Type</label>
-                    <select name="stream_type" id="ch-type" class="form-control" onchange="toggleUrlHint();toggleYtFormat()">
+                    <select name="stream_type" id="ch-type" class="form-control" onchange="toggleUrlHint();toggleYtFormat();toggleLiveFields()">
                         <option value="M3U8">M3U8</option>
                         <option value="MP4">MP4</option>
                         <option value="RTMP">RTMP</option>
@@ -220,7 +232,26 @@ require __DIR__ . '/includes/header.php';
                         <option value="YouTube">YouTube</option>
                         <option value="Restream">Restream</option>
                         <option value="TS">TS</option>
+                        <option value="Live">Live (OBS/vMix)</option>
                     </select>
+                </div>
+                <div id="live-fields" style="display:none">
+                    <div class="mb-3">
+                        <label class="form-label">Ingest Server URL</label>
+                        <input type="text" name="ingest_url" id="ch-ingest" class="form-control"
+                               placeholder="rtmp://your-server-ip:1935/live">
+                        <small class="form-text">RTMP server URL for OBS/vMix to push to. Default: rtmp://your-ip:1935/live</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Stream Key</label>
+                        <div class="input-group">
+                            <input type="text" name="stream_key" id="ch-streamkey" class="form-control"
+                                   placeholder="Auto-generated if empty" readonly>
+                            <button type="button" class="btn btn-outline-secondary" onclick="generateStreamKey()"
+                                    style="border-color:var(--border-color);color:var(--text-color)">Regenerate</button>
+                        </div>
+                        <small class="form-text">Unique key for OBS/vMix. OBS pushes to: <code>rtmp://server/live/<strong id="sk-display">...</strong></code></small>
+                    </div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Stream URL</label>
@@ -259,6 +290,36 @@ require __DIR__ . '/includes/header.php';
 </div>
 
 <script>
+function generateStreamKey() {
+    const arr = new Uint8Array(18);
+    crypto.getRandomValues(arr);
+    const key = Array.from(arr, b => b.toString(36).padStart(2, '0')).join('').slice(0, 24);
+    document.getElementById('ch-streamkey').value = key;
+    document.getElementById('sk-display').textContent = key;
+}
+function toggleLiveFields() {
+    const type = document.getElementById('ch-type').value;
+    const live = document.getElementById('live-fields');
+    const urlEl = document.getElementById('ch-url');
+    const urlGroup = urlEl.closest('.mb-3');
+    if (type === 'Live') {
+        live.style.display = '';
+        urlGroup.style.display = 'none';
+        urlEl.required = false;
+        urlEl.disabled = true;
+        if (!document.getElementById('ch-streamkey').value) {
+            generateStreamKey();
+        }
+        if (!document.getElementById('ch-ingest').value) {
+            document.getElementById('ch-ingest').value = 'rtmp://' + window.location.hostname + ':1935/live';
+        }
+    } else {
+        live.style.display = 'none';
+        urlGroup.style.display = '';
+        urlEl.required = true;
+        urlEl.disabled = false;
+    }
+}
 function resetForm() {
     document.getElementById('ch-action').value = 'create';
     document.getElementById('ch-id').value = '0';
@@ -271,7 +332,10 @@ function resetForm() {
     document.getElementById('ch-sort').value = '0';
     document.getElementById('ch-ytfmt').value = '';
     document.getElementById('ch-direct').checked = false;
+    document.getElementById('ch-ingest').value = '';
+    document.getElementById('ch-streamkey').value = '';
     toggleYtFormat();
+    toggleLiveFields();
 }
 function editChannel(ch) {
     document.getElementById('ch-action').value = 'update';
@@ -281,12 +345,19 @@ function editChannel(ch) {
     document.getElementById('ch-cat').value = ch.category_id;
     document.getElementById('ch-logo').value = '';
     document.getElementById('ch-type').value = ch.stream_type;
-    document.getElementById('ch-url').value = ch.url;
+    document.getElementById('ch-url').value = ch.url || '';
     document.getElementById('ch-sort').value = ch.sort_order || 0;
     document.getElementById('ch-ytfmt').value = ch.yt_format || '';
     document.getElementById('ch-direct').checked = ch.direct_play == 1;
+    document.getElementById('ch-ingest').value = ch.ingest_url || '';
+    document.getElementById('ch-streamkey').value = ch.stream_key || '';
+    if (ch.stream_key) {
+        document.getElementById('sk-display').textContent = ch.stream_key;
+    }
     toggleUrlHint();
     toggleYtFormat();
+    toggleLiveFields();
+    document.getElementById('ch-url').required = ch.stream_type !== 'Live';
 }
 function toggleUrlHint() {
     const type = document.getElementById('ch-type').value;
@@ -297,6 +368,8 @@ function toggleUrlHint() {
         hint.textContent = 'Paste any HLS stream URL (m3u8). The server will proxy/restream it to avoid CORS/IP blocks.';
     } else if (type === 'TS') {
         hint.textContent = 'Direct .ts file URL (e.g. https://example.com/stream.ts).';
+    } else if (type === 'Live') {
+        hint.textContent = 'Watch URL auto-generated from stream key. Set a custom URL override below if needed.';
     } else {
         hint.textContent = 'Paste the full stream URL (M3U8, MP4, RTMP, or Dash)';
     }

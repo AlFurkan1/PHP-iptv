@@ -32,6 +32,7 @@ $mimeMap = [
     'Dash'     => 'application/dash+xml',
     'Restream' => 'application/x-mpegURL',
     'TS'       => 'video/mp2t',
+    'Live'     => 'application/x-mpegURL',
 ];
 
 $url     = $ch['url'];
